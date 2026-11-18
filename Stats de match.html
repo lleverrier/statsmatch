@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Stats de match</title>
+<style>
+  :root{
+    --bg:#0f1712; --panel:#17231b; --panel2:#1f2e24; --line:#2c3f32;
+    --txt:#eef3ef; --mut:#9db0a3; --acc:#3ddc84; --home:#3d8bff; --away:#ff6b5b;
+    --grass1:#2f7d3e; --grass2:#2a7238;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .app{max-width:540px;margin:0 auto;padding:10px 10px 80px}
+  button{font:inherit;color:inherit;border:0;cursor:pointer}
+  input,select{font:inherit;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+
+  /* Score bar */
+  .score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;background:var(--panel);border-radius:14px;padding:10px}
+  .team{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .team input{width:100%;font-weight:600;text-align:center;background:transparent;border:0;border-bottom:1px dashed #ffffff40;border-radius:0;padding:2px}
+  .team input:focus{border-color:var(--line);outline:none}
+  .team.h input{color:var(--home)} .team.a input{color:var(--away)}
+  .goals{font-size:34px;font-weight:800;text-align:center;letter-spacing:2px}
+  .clock{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .time{font-variant-numeric:tabular-nums;font-size:22px;font-weight:700}
+  .period{font-size:12px;color:var(--mut)}
+  .clockbtns{display:flex;gap:6px}
+  .cbtn{background:var(--panel2);border-radius:8px;padding:6px 10px;font-size:14px}
+  .cbtn.play{background:var(--acc);color:#04210f;font-weight:700}
+
+  /* Tabs */
+  .tabs{display:flex;gap:6px;margin:10px 0}
+  .tab{flex:1;background:var(--panel);border-radius:10px;padding:9px;font-weight:600;color:var(--mut)}
+  .tab.on{background:var(--panel2);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .view{display:none}.view.on{display:block}
+
+  /* Team toggle */
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+  .seg button{background:var(--panel);border-radius:10px;padding:10px;font-weight:700;border:2px solid transparent}
+  .seg .h.on{border-color:var(--home);background:#16294a}
+  .seg .a.on{border-color:var(--away);background:#4a1c18}
+
+  /* Actions */
+  .acts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+  .act{background:var(--panel);border-radius:10px;padding:8px 2px;font-size:12.5px;line-height:1.2;font-weight:600;min-height:48px;border:2px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+  .act .dot{width:10px;height:10px;border-radius:50%}
+  .act.on{border-color:var(--acc);background:var(--panel2)}
+
+  /* Players */
+  .pl{flex:0 0 auto;width:40px;height:40px;border-radius:50%;background:var(--panel);font-weight:700;border:2px solid transparent}
+  .pl.on{border-color:var(--acc);background:var(--panel2)}
+  .hint{font-size:12.5px;color:var(--mut);margin:2px 0 6px;text-align:center}
+
+  /* Pitch */
+  .pitchwrap{position:relative;border-radius:12px;overflow:hidden;background:var(--grass1)}
+  svg.pitch{display:block;width:100%;height:auto;touch-action:manipulation}
+  .rotate{display:none;margin-top:8px;font-size:12.5px;color:var(--mut);text-align:center}
+  @media (orientation:portrait){ .rotate{display:block} }
+  @media (orientation:landscape) and (max-height:600px){
+    .app{max-width:none;padding:6px 10px 10px}
+    .score{grid-template-columns:1fr auto 1fr;padding:4px 10px;border-radius:10px}
+    .team{flex-direction:row;align-items:center;justify-content:center;gap:8px}
+    .team.a{flex-direction:row-reverse}
+    .team input{width:auto;max-width:160px;flex:1}
+    .goals{font-size:24px}
+    .clock{flex-direction:row;gap:10px}
+    .time{font-size:18px}
+    .tabs{margin:6px 0}
+    .tab{padding:6px}
+    .saisieGrid{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}
+    .pitchCol svg.pitch{height:calc(100vh - 118px);width:auto;max-width:62vw}
+    .pitchCol .pitchwrap{display:inline-block}
+    .pitchCol .hint{display:none}
+    .ctrlCol{height:calc(100vh - 118px);overflow-y:auto}
+    .seg button{padding:7px}
+    .acts{grid-template-columns:repeat(2,1fr);gap:5px;margin-bottom:5px}
+    .act{min-height:40px;flex-direction:row;font-size:12.5px}
+    .quick{margin-top:5px}
+    .quick .btn{padding:9px 4px;font-size:13px}
+    #v-stats .pitchwrap svg{max-height:70vh;width:auto;margin:0 auto}
+  }
+  .dir{position:absolute;top:6px;right:8px;font-size:11px;color:#ffffffcc;background:#0006;padding:2px 6px;border-radius:6px;pointer-events:none}
+  .row{display:flex;gap:6px;margin-top:8px}
+  .btn{flex:1;background:var(--panel);border-radius:10px;padding:11px;font-weight:600}
+  .btn.warn{color:#ffb4ab}
+  .quick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+
+  /* Stats */
+  .card{background:var(--panel);border-radius:14px;padding:12px;margin-bottom:10px}
+  .card h3{margin:0 0 10px;font-size:15px}
+  .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .filters select{flex:1;min-width:0}
+  .srow{display:grid;grid-template-columns:34px 1fr auto 1fr 34px;align-items:center;gap:6px;margin:7px 0;font-size:13px}
+  .srow .n{font-weight:700;font-variant-numeric:tabular-nums}
+  .srow .n.l{text-align:right}
+  .srow .lab{text-align:center;color:var(--mut);font-size:12px;min-width:92px}
+  .bar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;display:flex}
+  .bar.l{justify-content:flex-end}
+  .bar i{display:block;height:100%}
+  .bar.l i{background:var(--home)} .bar.r i{background:var(--away)}
+  .heads{display:grid;grid-template-columns:1fr 1fr;font-weight:700;font-size:13px;margin-bottom:4px}
+  .heads span:first-child{color:var(--home)} .heads span:last-child{color:var(--away);text-align:right}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:600;font-size:11.5px}
+  td:first-child,th:first-child{text-align:left}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;font-size:11.5px;color:var(--mut);margin-top:8px}
+  .legend span{display:flex;align-items:center;gap:4px}
+  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+  /* Journal */
+  .ev{display:grid;grid-template-columns:48px 10px 1fr auto;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);font-size:14px}
+  .ev .m{font-weight:700;font-variant-numeric:tabular-nums;color:var(--mut)}
+  .ev .t{width:10px;height:10px;border-radius:50%}
+  .ev .del{background:var(--panel2);border-radius:8px;width:32px;height:32px}
+  .empty{color:var(--mut);text-align:center;padding:24px 0;font-size:14px}
+
+  /* Toast & modal */
+  .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(100px);background:#000d;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;transition:transform .2s;z-index:20;max-width:90%;text-align:center}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
+  .modal.on{display:flex}
+  .box{background:var(--panel);border-radius:14px;padding:16px;width:100%;max-width:440px;max-height:92vh;overflow-y:auto}
+  .box h3{margin:0 0 8px}
+  .box p{color:var(--mut);font-size:14px;margin:0 0 12px}
+  .box textarea{width:100%;height:200px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;font-size:11px;font-family:ui-monospace,monospace}
+  .setting{display:flex;justify-content:space-between;align-items:center;margin:10px 0;font-size:14px}
+  .setting input{width:80px;text-align:center}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="score">
+    <div class="team h"><input id="homeName" value="FC Flers" aria-label="Nom équipe"><div class="goals" id="gH">0</div></div>
+    <div class="clock">
+      <div class="time" id="time">00:00</div>
+      <div class="period" id="period">1re période</div>
+      <div class="clockbtns">
+        <button class="cbtn play" id="playBtn">▶</button>
+        <button class="cbtn" id="halfBtn">Mi-temps</button>
+      </div>
+    </div>
+    <div class="team a"><input id="awayName" value="Adversaire" aria-label="Nom adversaire"><div class="goals" id="gA">0</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-v="saisie">Saisie</button>
+    <button class="tab" data-v="stats">Stats</button>
+    <button class="tab" data-v="journal">Journal</button>
+  </div>
+
+  <!-- SAISIE -->
+  <section class="view on" id="v-saisie">
+    <div class="saisieGrid">
+      <div class="pitchCol">
+        <div class="pitchwrap">
+          <svg class="pitch" id="pitch" viewBox="-3 -3 111 74"></svg>
+          <div class="dir">FC Flers attaque →</div>
+        </div>
+        <div class="hint" id="hint">Choisis une action puis touche le terrain là où elle a eu lieu</div>
+      </div>
+      <div class="ctrlCol">
+        <div class="seg">
+          <button class="h on" id="tH">FC Flers</button>
+          <button class="a" id="tA">Adversaire</button>
+        </div>
+        <div class="acts" id="acts"></div>
+        <div class="quick">
+          <button class="btn" id="sideBtn">⇄ Côté</button>
+          <button class="btn" id="subBtn">🔁 Changement</button>
+          <button class="btn" id="undoBtn">↩ Annuler</button>
+        </div>
+      </div>
+    </div>
+    <div class="rotate">📱↻ Tourne ton téléphone en paysage pour un terrain plus grand</div>
+  </section>
+
+  <!-- STATS -->
+  <section class="view" id="v-stats">
+    <div class="card">
+      <div class="filters">
+        <select id="sHalf"><option value="all">Tout le match</option><option value="1">1re période</option><option value="2">2e période</option></select>
+      </div>
+      <div class="heads"><span id="hdH">FC Flers</span><span id="hdA">Adversaire</span></div>
+      <div id="compare"></div>
+    </div>
+    <div class="card">
+      <h3>Carte des actions</h3>
+      <p class="hint" style="text-align:left;margin-top:-4px" id="mapNote">FC Flers attaque toujours vers la droite sur cette carte (les deux périodes sont remises dans le même sens).</p>
+      <div class="filters">
+        <select id="mTeam"><option value="all">Les deux équipes</option><option value="H">FC Flers</option><option value="A">Adversaire</option></select>
+        <select id="mType"></select>
+      </div>
+      <div class="pitchwrap"><svg class="pitch" id="map" viewBox="-3 -3 111 74"></svg></div>
+      <div class="legend" id="legend"></div>
+      <div class="row"><button class="btn" id="imgBtn">🖼 Image de la carte</button></div>
+    </div>
+    <div class="row"><button class="btn" id="expBtn">📄 Exporter les stats en PDF</button></div>
+  </section>
+
+  <!-- JOURNAL -->
+  <section class="view" id="v-journal">
+    <div class="card" id="log"></div>
+    <div class="row">
+      <button class="btn" id="csvBtn">📄 Exporter en PDF</button>
+      <button class="btn" id="setBtn">⚙️ Réglages</button>
+    </div>
+    <div class="row"><button class="btn warn" id="resetBtn">Nouveau match</button></div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal"><div class="box" id="box"></div></div>
+
+<script>
+const ACTIONS = [
+  {k:'but',   l:'But',            c:'#ffd23f'},
+  {k:'tirc',  l:'Tir cadré',      c:'#ff8c42'},
+  {k:'tirnc', l:'Tir non cadré',  c:'#c9a27e'},
+  {k:'corner',l:'Corner',         c:'#b388ff'},
+  {k:'hj',    l:'Hors-jeu',       c:'#90a4ae'},
+  {k:'cj',    l:'Carton jaune',   c:'#fff176'},
+  {k:'cr',    l:'Carton rouge',   c:'#e53935'},
+];
+const SUB = {k:'chgt', l:'Changement', c:'#ffffff'};
+const ALL = [...ACTIONS, SUB];
+const A = Object.fromEntries(ALL.map(a=>[a.k,a]));
+const KEY = 'statsMatchFoot.v1';
+
+let S = {home:'FC Flers', away:'Adversaire', half:1, halfLen:45, running:false, startedAt:null, acc:0, events:[], sideR:{1:true,2:false}};
+let ui = {team:'H', act:'tirc'};
+
+try { const raw = localStorage.getItem(KEY); if(raw) S = Object.assign(S, JSON.parse(raw)); } catch(e){}
+S.events = (S.events||[]).filter(e=>A[e.type]);
+if(!S.sideR) S.sideR = {1:true,2:false};
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const tname = t => t==='H' ? S.home : S.away;
+
+/* ---------- Pitch drawing ---------- */
+function pitchSVG(){
+  let s = '';
+  for(let i=0;i<10;i++) s += `<rect x="-3" y="${-3+i*11.1}" width="74" height="11.1" fill="${i%2?'#2a7238':'#2f7d3e'}"/>`;
+  const L = 'fill="none" stroke="#ffffffd0" stroke-width="0.4"';
+  s += `<rect x="0" y="0" width="68" height="105" ${L}/>`;
+  s += `<line x1="0" y1="52.5" x2="68" y2="52.5" ${L}/>`;
+  s += `<circle cx="34" cy="52.5" r="9.15" ${L}/><circle cx="34" cy="52.5" r="0.5" fill="#fff"/>`;
+  // top (adverse goal)
+  s += `<rect x="13.84" y="0" width="40.32" height="16.5" ${L}/><rect x="24.84" y="0" width="18.32" height="5.5" ${L}/>`;
+  s += `<circle cx="34" cy="11" r="0.5" fill="#fff"/><path d="M26.7 16.5 A9.15 9.15 0 0 0 41.3 16.5" ${L}/>`;
+  s += `<rect x="30.34" y="-2" width="7.32" height="2" ${L}/>`;
+  // bottom (our goal)
+  s += `<rect x="13.84" y="88.5" width="40.32" height="16.5" ${L}/><rect x="24.84" y="99.5" width="18.32" height="5.5" ${L}/>`;
+  s += `<circle cx="34" cy="94" r="0.5" fill="#fff"/><path d="M26.7 88.5 A9.15 9.15 0 0 1 41.3 88.5" ${L}/>`;
+  s += `<rect x="30.34" y="105" width="7.32" height="2" ${L}/>`;
+  return s;
+}
+// Terrain horizontal : on garde les coordonnées (x 0-68 largeur, y 0-105 longueur) et on fait pivoter l'affichage
+// right=true : FC Flers attaque vers la droite de l'écran
+const G = (inner, right=true) => `<g transform="${right?'matrix(0,1,-1,0,105,0)':'matrix(0,-1,1,0,0,68)'}">${inner}</g>`;
+function marker(e, r=1.6, op=1){
+  const c = A[e.type].c;
+  const stroke = e.team==='H' ? '#3d8bff' : '#ff6b5b';
+  let m = `<circle cx="${e.x}" cy="${e.y}" r="${r}" fill="${c}" fill-opacity="${op}" stroke="${stroke}" stroke-width="0.7"/>`;
+  return m;
+}
+
+/* ---------- Clock ---------- */
+function elapsed(){ return S.acc + (S.running ? Date.now()-S.startedAt : 0); }
+function minuteInfo(){
+  const m = Math.floor(elapsed()/60000);
+  const base = (S.half-1)*S.halfLen;
+  if(m < S.halfLen) return {min: base+m+1, label: `${base+m+1}'`};
+  return {min: base+S.halfLen, label: `${base+S.halfLen}+${m-S.halfLen+1}'`};
+}
+function tick(){
+  const e = elapsed(), mm = Math.floor(e/60000), ss = Math.floor(e/1000)%60;
+  const base = (S.half-1)*S.halfLen;
+  $('time').textContent = `${String(base+mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  $('period').textContent = S.half===1 ? '1re période' : '2e période';
+  $('playBtn').textContent = S.running ? '⏸' : '▶';
+  $('playBtn').classList.toggle('play', !S.running);
+  $('halfBtn').textContent = S.half===1 ? 'Mi-temps' : 'Fin';
+}
+$('playBtn').onclick = ()=>{
+  if(S.running){ S.acc += Date.now()-S.startedAt; S.running=false; }
+  else { S.startedAt = Date.now(); S.running=true; }
+  save(); tick();
+};
+$('halfBtn').onclick = ()=>{
+  if(S.half===1){
+    confirmBox('Passer en 2e période ?', 'Le chrono repart à '+S.halfLen+':00 (en pause) et les équipes changent de côté.', ()=>{
+      S.half=2; S.acc=0; S.running=false; S.sideR[2] = !S.sideR[1]; save(); renderAll(); tick(); toast('2e période — appuie sur ▶ au coup d\'envoi');
+    });
+  } else {
+    if(S.running){ S.acc += Date.now()-S.startedAt; S.running=false; }
+    save(); tick(); toast('Fin du match — consulte l\'onglet Stats');
+  }
+};
+setInterval(tick, 500);
+
+/* ---------- Saisie UI ---------- */
+function renderActs(){
+  $('acts').innerHTML = ACTIONS.map(a=>`<button class="act ${ui.act===a.k?'on':''}" data-k="${a.k}"><span class="dot" style="background:${a.c}"></span>${a.l}</button>`).join('');
+  $('acts').querySelectorAll('.act').forEach(b=>b.onclick=()=>{ ui.act=b.dataset.k; renderActs(); });
+}
+function setTeam(t){
+  ui.team=t; $('tH').classList.toggle('on',t==='H'); $('tA').classList.toggle('on',t==='A');
+}
+$('tH').onclick=()=>setTeam('H'); $('tA').onclick=()=>setTeam('A');
+
+function renderPitch(){
+  const recent = S.events.filter(e=>e.half===S.half && e.x!=null).slice(-10);
+  const right = S.sideR[S.half] !== false;
+  $('pitch').innerHTML = G(pitchSVG() + recent.map((e,i)=>marker(e,1.6,0.35+0.65*(i+1)/recent.length)).join(''), right);
+  const d = document.querySelector('.dir');
+  d.textContent = right ? S.home+' attaque →' : '← '+S.home+' attaque';
+  d.style.left = right ? 'auto' : '8px'; d.style.right = right ? '8px' : 'auto';
+}
+$('sideBtn').onclick = ()=>{
+  S.sideR[S.half] = !(S.sideR[S.half] !== false); save(); renderPitch();
+  toast(S.home+' attaque vers la '+(S.sideR[S.half]?'droite':'gauche')+' ('+(S.half===1?'1re':'2e')+' période)');
+};
+$('pitch').addEventListener('click', ev=>{
+  const svg = $('pitch'), pt = svg.createSVGPoint();
+  pt.x = ev.clientX; pt.y = ev.clientY;
+  const p = pt.matrixTransform(svg.querySelector('g').getScreenCTM().inverse());
+  const x = Math.max(0,Math.min(68,p.x)), y = Math.max(0,Math.min(105,p.y));
+  addEvent(ui.act, Math.round(x*10)/10, Math.round(y*10)/10);
+});
+$('subBtn').onclick = ()=> addEvent('chgt', null, null);
+$('undoBtn').onclick = ()=>{
+  const e = S.events.pop();
+  if(!e){ toast('Rien à annuler'); return; }
+  save(); renderAll(); toast('Annulé : '+A[e.type].l+' '+e.label);
+};
+
+function addEvent(type, x, y){
+  if(!S.running && S.events.length===0 && S.acc===0) toast('Astuce : lance le chrono ▶ pour des minutes exactes');
+  const mi = minuteInfo();
+  const e = {id:Date.now()+Math.random(), half:S.half, min:mi.min, label:mi.label, team:ui.team, type, x, y, side: S.sideR[S.half]!==false ? 'Droite' : 'Gauche'};
+  S.events.push(e); save();
+  const msg = `${A[type].l} — ${tname(ui.team)} ${mi.label}`;
+  renderAll(); toast(msg);
+  if(navigator.vibrate) try{navigator.vibrate(30)}catch(_){}
+}
+
+/* ---------- Score / names ---------- */
+function renderScore(){
+  $('gH').textContent = S.events.filter(e=>e.type==='but'&&e.team==='H').length;
+  $('gA').textContent = S.events.filter(e=>e.type==='but'&&e.team==='A').length;
+  $('homeName').value = S.home; $('awayName').value = S.away;
+  $('tH').textContent = S.home; $('tA').textContent = S.away;
+  $('hdH').textContent = S.home; $('mapNote').textContent = S.home+' attaque toujours vers la droite sur cette carte (les deux périodes sont remises dans le même sens).'; $('hdA').textContent = S.away;
+  $('mTeam').options[1].text = S.home; $('mTeam').options[2].text = S.away;
+}
+$('homeName').oninput = e=>{ S.home = e.target.value || 'Domicile'; save(); renderScore(); };
+$('awayName').oninput = e=>{ S.away = e.target.value || 'Adversaire'; save(); renderScore(); };
+
+/* ---------- Stats ---------- */
+function renderStats(){
+  const h = $('sHalf').value;
+  const ev = S.events.filter(e=> h==='all' || e.half==h);
+  const cnt = (t,k)=> ev.filter(e=>e.team===t && e.type===k).length;
+  const rows = [];
+  const tirs = t => cnt(t,'but')+cnt(t,'tirc')+cnt(t,'tirnc');
+  const cadres = t => cnt(t,'but')+cnt(t,'tirc');
+  rows.push(['Buts', cnt('H','but'), cnt('A','but')]);
+  rows.push(['Tirs (total)', tirs('H'), tirs('A')]);
+  rows.push(['Tirs cadrés', cadres('H'), cadres('A')]);
+  for(const k of ['corner','hj','cj','cr','chgt']) rows.push([A[k].l, cnt('H',k), cnt('A',k)]);
+  let html = rows.map(([l,a,b])=>{
+    const max = Math.max(a,b,1);
+    return `<div class="srow"><span class="n l">${a}</span><div class="bar l"><i style="width:${a/max*100}%"></i></div><span class="lab">${l}</span><div class="bar r"><i style="width:${b/max*100}%"></i></div><span class="n">${b}</span></div>`;
+  }).join('');
+  const pct = (a,b)=> b? Math.round(a/b*100)+' %' : '–';
+  html += `<div class="srow"><span class="n l">${pct(cadres('H'),tirs('H'))}</span><div></div><span class="lab">% tirs cadrés</span><div></div><span class="n">${pct(cadres('A'),tirs('A'))}</span></div>`;
+  $('compare').innerHTML = html;
+
+  // map
+  const mt = $('mTeam').value, mk = $('mType').value;
+  const pts = ev.filter(e=> e.x!=null && (mt==='all'||e.team===mt) && (mk==='all' || (mk==='tirs' ? ['but','tirc','tirnc'].includes(e.type) : e.type===mk)));
+  $('map').innerHTML = G(pitchSVG() + pts.map(e=>marker(e,1.7,0.9)).join(''));
+  const used = [...new Set(pts.map(e=>e.type))];
+  $('legend').innerHTML = (used.map(k=>`<span><i style="background:${A[k].c}"></i>${A[k].l}</span>`).join('') +
+    `<span><i style="background:transparent;border:2px solid var(--home)"></i>${esc(S.home)}</span><span><i style="background:transparent;border:2px solid var(--away)"></i>${esc(S.away)}</span>`) + ` <span>· ${pts.length} action(s)</span>`;
+}
+$('mType').innerHTML = '<option value="all">Toutes les actions</option><option value="tirs">Tous les tirs</option>' + ACTIONS.map(a=>`<option value="${a.k}">${a.l}</option>`).join('');
+['sHalf','mTeam','mType'].forEach(id=>$(id).onchange=renderStats);
+
+/* ---------- Journal ---------- */
+function renderLog(){
+  if(!S.events.length){ $('log').innerHTML = '<div class="empty">Aucune action saisie pour l\'instant.</div>'; return; }
+  $('log').innerHTML = [...S.events].reverse().map(e=>`
+    <div class="ev"><span class="m">${e.label}</span><span class="t" style="background:${A[e.type].c}"></span>
+    <span><b style="color:${e.team==='H'?'var(--home)':'var(--away)'}">${esc(tname(e.team))}</b> · ${A[e.type].l}</span>
+    <button class="del" data-id="${e.id}" aria-label="Supprimer">✕</button></div>`).join('');
+  $('log').querySelectorAll('.del').forEach(b=>b.onclick=()=>{
+    S.events = S.events.filter(e=>String(e.id)!==b.dataset.id); save(); renderAll();
+  });
+}
+
+/* ---------- Export / settings / reset ---------- */
+/* Positions : x = largeur (0-68 m), y = longueur (0 = but adverse, 105 = but FC Flers), toujours vu du FC Flers */
+const SHOTS = ['but','tirc','tirnc'];
+const num = v => String(v).replace('.',',');
+function zone(e){
+  if(e.x==null) return '';
+  const inBoxX = e.x>=13.84 && e.x<=54.16;
+  if(inBoxX && e.y<=16.5) return 'Surface adverse';
+  if(inBoxX && e.y>=88.5) return 'Surface '+S.home;
+  return e.y<35 ? 'Tiers offensif' : e.y<70 ? 'Tiers médian' : 'Tiers défensif';
+}
+function couloir(e){ if(e.x==null) return ''; return e.x<22.67 ? 'Gauche' : e.x>45.33 ? 'Droit' : 'Axe'; }
+function distBut(e){
+  if(e.x==null || !SHOTS.includes(e.type)) return '';
+  const gy = e.team==='H' ? 0 : 105;
+  return num(Math.round(Math.hypot(e.x-34, e.y-gy)*10)/10);
+}
+function csvDetail(){
+  const head = ['Minute','Période','Équipe','Action','Zone (vue '+S.home+')','Couloir (vue '+S.home+')','Distance au but visé (m)',
+    'Côté attaque '+S.home+' sur le terrain','X largeur (m)','Y longueur (m, 0 = but adverse)'].join(';');
+  return [head, ...S.events.map(e=>[e.label, e.half, tname(e.team), A[e.type].l, zone(e), couloir(e), distBut(e),
+    e.side || (S.sideR[e.half]!==false?'Droite':'Gauche'), e.x==null?'':num(e.x), e.y==null?'':num(e.y)].join(';'))].join('\n');
+}
+function csvResume(){
+  const L = [];
+  const c = (t,k,h)=> S.events.filter(e=>e.team===t && (Array.isArray(k)?k.includes(e.type):e.type===k) && (!h||e.half===h)).length;
+  L.push(`${S.home} ${c('H','but')} - ${c('A','but')} ${S.away}`);
+  L.push('');
+  L.push(['Action',S.home+' 1re',S.home+' 2e',S.home+' total',S.away+' 1re',S.away+' 2e',S.away+' total'].join(';'));
+  const rows = [['Buts','but'],['Tirs (total)',SHOTS],['Tirs cadrés',['but','tirc']],['Tirs non cadrés','tirnc'],
+    ['Corners','corner'],['Hors-jeu','hj'],['Cartons jaunes','cj'],['Cartons rouges','cr'],['Changements','chgt']];
+  for(const [l,k] of rows) L.push([l,c('H',k,1),c('H',k,2),c('H',k),c('A',k,1),c('A',k,2),c('A',k)].join(';'));
+  L.push('');
+  L.push('Tirs par zone (vue '+S.home+')');
+  const zones = ['Surface adverse','Tiers offensif','Tiers médian','Tiers défensif','Surface '+S.home];
+  L.push(['Zone',S.home+' tirs',S.home+' cadrés',S.home+' buts',S.away+' tirs',S.away+' cadrés',S.away+' buts'].join(';'));
+  const cz = (t,ks,z)=> S.events.filter(e=>e.team===t && ks.includes(e.type) && zone(e)===z).length;
+  for(const z of zones) L.push([z,cz('H',SHOTS,z),cz('H',['but','tirc'],z),cz('H',['but'],z),cz('A',SHOTS,z),cz('A',['but','tirc'],z),cz('A',['but'],z)].join(';'));
+  L.push('');
+  L.push('Tirs par couloir (vue '+S.home+')');
+  L.push(['Couloir',S.home+' tirs',S.away+' tirs'].join(';'));
+  for(const k of ['Gauche','Axe','Droit']) L.push([k, S.events.filter(e=>e.team==='H'&&SHOTS.includes(e.type)&&couloir(e)===k).length, S.events.filter(e=>e.team==='A'&&SHOTS.includes(e.type)&&couloir(e)===k).length].join(';'));
+  const avg = t => { const d = S.events.filter(e=>e.team===t && SHOTS.includes(e.type) && e.x!=null).map(e=>Math.hypot(e.x-34, e.y-(t==='H'?0:105))); return d.length? num(Math.round(d.reduce((a,b)=>a+b,0)/d.length*10)/10) : '–'; };
+  L.push('');
+  L.push(['Distance moyenne des tirs (m)', S.home+' '+avg('H'), S.away+' '+avg('A')].join(';'));
+  return L.join('\n');
+}
+function openExport(which='resume'){
+  const text = which==='resume' ? csvResume() : csvDetail();
+  openModal(`<h3>Export des stats</h3>
+    <div class="seg" style="margin-bottom:8px"><button class="h ${which==='resume'?'on':''}" id="exR">Résumé + zones</button><button class="h ${which==='detail'?'on':''}" id="exD">Détail des actions</button></div>
+    <p>Copie puis colle dans Excel ou Google Sheets (séparateur « ; »). Positions en mètres sur un terrain de 105 × 68, toujours vues du côté ${esc(S.home)}.</p>
+    <textarea id="csvTxt" readonly>${esc(text)}</textarea>
+    <div class="row"><button class="btn" id="cp">📋 Copier</button><button class="btn" id="cl">Fermer</button></div>`);
+  $('exR').onclick = ()=>openExport('resume'); $('exD').onclick = ()=>openExport('detail');
+  $('cl').onclick = closeModal;
+  $('cp').onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(text); toast('Copié !'); }
+    catch(e){ const ta=$('csvTxt'); ta.focus(); ta.select(); toast('Sélectionné — copie manuellement'); }
+  };
+}
+function openExportMenu(){
+  openModal(`<h3>Exporter les stats</h3><p>Le PDF contient le résumé, les tirs par zone et par couloir, les cartes des tirs et le détail de chaque action avec sa position.</p>
+    <div class="row"><button class="btn" id="pdfBtn" style="background:var(--acc);color:#04210f">📄 Télécharger le PDF</button></div>
+    <div class="row"><button class="btn" id="csvAlt">Copier en CSV (Excel)</button><button class="btn" id="cl">Fermer</button></div>`);
+  $('pdfBtn').onclick = ()=>{ closeModal(); exportPDF(); };
+  $('csvAlt').onclick = ()=>openExport('resume');
+  $('cl').onclick = closeModal;
+}
+$('csvBtn').onclick = openExportMenu;
+$('expBtn').onclick = openExportMenu;
+$('imgBtn').onclick = ()=>{
+  const svg = $('map').cloneNode(true);
+  svg.setAttribute('xmlns','http://www.w3.org/2000/svg'); svg.setAttribute('width',1110); svg.setAttribute('height',740);
+  const img = new Image();
+  img.onload = ()=>{
+    const cv = document.createElement('canvas'); cv.width=1110; cv.height=820;
+    const x = cv.getContext('2d'); x.fillStyle='#0f1712'; x.fillRect(0,0,1110,820);
+    x.drawImage(img,0,0,1110,740);
+    x.fillStyle='#eef3ef'; x.font='bold 28px sans-serif';
+    const gh=S.events.filter(e=>e.type==='but'&&e.team==='H').length, ga=S.events.filter(e=>e.type==='but'&&e.team==='A').length;
+    x.fillText(`${S.home} ${gh} - ${ga} ${S.away}  ·  ${$('mType').selectedOptions[0].text} · ${$('mTeam').selectedOptions[0].text} · ${$('sHalf').selectedOptions[0].text}`, 20, 790);
+    let url; try{ url = cv.toDataURL('image/png'); }catch(e){ toast('Image impossible sur cet appareil'); return; }
+    openModal(`<h3>Image de la carte</h3><p>Appui long sur l'image pour l'enregistrer ou la partager.</p>
+      <img src="${url}" style="width:100%;border-radius:8px"><div class="row"><button class="btn" id="cl">Fermer</button></div>`);
+    $('cl').onclick = closeModal;
+  };
+  img.src = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));
+};
+$('setBtn').onclick = ()=>{
+  openModal(`<h3>Réglages</h3>
+    <div class="row" style="margin:0 0 6px"><button class="btn" id="stMatch">✏️ Noms des équipes</button></div>
+    <div class="setting">Durée d'une période (min)<input id="stLen" type="number" min="5" max="60" value="${S.halfLen}"></div>
+    <div class="row"><button class="btn" id="stOk">Enregistrer</button></div>`);
+  $('stMatch').onclick = matchSetup;
+  $('stOk').onclick = ()=>{
+    S.halfLen = Math.max(5,Math.min(60, +$('stLen').value||45));
+    save(); closeModal(); renderAll(); tick();
+  };
+};
+function matchSetup(){
+  openModal(`<h3>Match</h3><p>Saisis le nom de l'adversaire (tu peux aussi le modifier à tout moment en touchant son nom en haut).</p>
+    <div class="setting">Adversaire<input id="msAway" type="text" style="width:60%;text-align:left" placeholder="ex. US Alençon" value="${S.away==='Adversaire'?'':esc(S.away)}"></div>
+    <div class="setting">Mon équipe<input id="msHome" type="text" style="width:60%;text-align:left" value="${esc(S.home)}"></div>
+    <div class="row"><button class="btn" id="msOk" style="background:var(--acc);color:#04210f">Valider</button></div>`);
+  setTimeout(()=>{ try{ $('msAway').focus(); }catch(e){} }, 50);
+  const ok = ()=>{ S.away = $('msAway').value.trim() || 'Adversaire'; S.home = $('msHome').value.trim() || 'FC Flers'; save(); closeModal(); renderAll(); };
+  $('msOk').onclick = ok;
+  $('msAway').onkeydown = $('msHome').onkeydown = e=>{ if(e.key==='Enter') ok(); };
+}
+$('resetBtn').onclick = ()=> confirmBox('Nouveau match ?', 'Toutes les actions saisies seront effacées. Pense à exporter avant.', ()=>{
+  S = Object.assign(S, {half:1, running:false, startedAt:null, acc:0, events:[], away:'Adversaire', sideR:{1:S.sideR[1],2:!S.sideR[1]}});
+  save(); renderAll(); tick(); matchSetup();
+});
+
+function openModal(html){ $('box').innerHTML = html; $('modal').classList.add('on'); }
+function closeModal(){ $('modal').classList.remove('on'); }
+$('modal').onclick = e=>{ if(e.target.id==='modal') closeModal(); };
+function confirmBox(title, text, ok){
+  openModal(`<h3>${title}</h3><p>${text}</p><div class="row"><button class="btn" id="no">Annuler</button><button class="btn" id="yes" style="background:var(--acc);color:#04210f">Confirmer</button></div>`);
+  $('no').onclick = closeModal; $('yes').onclick = ()=>{ closeModal(); ok(); };
+}
+let tt; function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),1800); }
+
+/* ---------- PDF (générateur minimal, sans dépendance) ---------- */
+const CP1252 = {'€':0x80,'‚':0x82,'„':0x84,'…':0x85,'Œ':0x8C,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,'•':0x95,'–':0x96,'—':0x97,'œ':0x9C,'Ÿ':0x9F};
+function pdfStr(t){
+  let o=''; for(const ch of String(t)){ let c=ch.charCodeAt(0); if(CP1252[ch]) c=CP1252[ch]; else if(c>255) c=63;
+    const b=String.fromCharCode(c); o += (b==='('||b===')'||b==='\\') ? '\\'+b : b; }
+  return '('+o+')';
+}
+const rgb = hex => { const h=hex.replace('#',''); return [0,2,4].map(i=>(parseInt(h.substr(i,2),16)/255).toFixed(3)).join(' '); };
+class MiniPDF{
+  constructor(){ this.W=595.28; this.H=841.89; this.pages=[]; this.imgs=[]; this.addPage(); }
+  addPage(){ this.c=[]; this.pages.push(this.c); }
+  text(x,y,t,{size=10,bold=false,color='#111111'}={}){ this.c.push(`BT /${bold?'F2':'F1'} ${size} Tf ${rgb(color)} rg ${x.toFixed(2)} ${(this.H-y).toFixed(2)} Td ${pdfStr(t)} Tj ET`); }
+  textC(cx,y,t,o={}){ const w = String(t).length*(o.size||10)*0.53; this.text(cx-w/2,y,t,o); }
+  rect(x,y,w,h,fill){ this.c.push(`${rgb(fill)} rg ${x.toFixed(2)} ${(this.H-y-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`); }
+  line(x1,y1,x2,y2,color='#cccccc',w=0.5){ this.c.push(`${rgb(color)} RG ${w} w ${x1.toFixed(2)} ${(this.H-y1).toFixed(2)} m ${x2.toFixed(2)} ${(this.H-y2).toFixed(2)} l S`); }
+  image(img,x,y,w,h){ let i=this.imgs.indexOf(img); if(i<0){ this.imgs.push(img); i=this.imgs.length-1; }
+    this.c.push(`q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${x.toFixed(2)} ${(this.H-y-h).toFixed(2)} cm /Im${i} Do Q`); }
+  output(){
+    const enc = s => { const a=new Uint8Array(s.length); for(let i=0;i<s.length;i++) a[i]=s.charCodeAt(i)&255; return a; };
+    const chunks=[], offs=[]; let len=0;
+    const push = u => { chunks.push(u); len+=u.length; };
+    const obj = (n, body) => { offs[n]=len; push(enc(`${n} 0 obj\n`)); for(const b of body) push(typeof b==='string'?enc(b):b); push(enc('\nendobj\n')); };
+    push(enc('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'));
+    const nImg=this.imgs.length, first=5+nImg, kids=this.pages.map((_,i)=>`${first+i*2} 0 R`).join(' ');
+    obj(1,['<< /Type /Catalog /Pages 2 0 R >>']);
+    obj(2,[`<< /Type /Pages /Kids [${kids}] /Count ${this.pages.length} >>`]);
+    obj(3,['<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>']);
+    obj(4,['<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>']);
+    const xo = this.imgs.map((_,i)=>`/Im${i} ${5+i} 0 R`).join(' ');
+    this.imgs.forEach((im,i)=>obj(5+i,[`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>\nstream\n`, im.bytes, '\nendstream']));
+    this.pages.forEach((c,i)=>{
+      const n=first+i*2, data=enc(c.join('\n'));
+      obj(n,[`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${this.W} ${this.H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << ${xo} >> >> /Contents ${n+1} 0 R >>`]);
+      obj(n+1,[`<< /Length ${data.length} >>\nstream\n`, data, '\nendstream']);
+    });
+    const total = first+this.pages.length*2, xref=len;
+    let x=`xref\n0 ${total}\n0000000000 65535 f \n`; for(let i=1;i<total;i++) x+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+    push(enc(x+`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+    const out=new Uint8Array(len); let p=0; for(const u of chunks){ out.set(u,p); p+=u.length; } return out;
+  }
+}
+function mapJpeg(events){
+  return new Promise((res,rej)=>{
+    const W=1110,H=740;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="-3 -3 111 74">${G(pitchSVG()+events.map(e=>marker(e,1.7,0.95)).join(''))}</svg>`;
+    const img = new Image();
+    img.onload = ()=>{ try{
+      const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d');
+      x.fillStyle='#ffffff'; x.fillRect(0,0,W,H); x.drawImage(img,0,0,W,H);
+      const b64 = cv.toDataURL('image/jpeg',0.9).split(',')[1], bin=atob(b64), u=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+      res({w:W,h:H,bytes:u}); }catch(e){ rej(e); } };
+    img.onerror = rej;
+    img.src = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  });
+}
+async function buildPDF(){
+  const pdf = new MiniPDF(), M=40, W=pdf.W-2*M;
+  const ev = S.events;
+  const c = (t,k,h)=> ev.filter(e=>e.team===t && (Array.isArray(k)?k.includes(e.type):e.type===k) && (!h||e.half===h)).length;
+  const gh=c('H','but'), ga=c('A','but');
+  const today = new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const DARK='#17231b', HOME='#2f6fd6', AWAY='#d94b3d', GREY='#666666';
+  let y;
+  const header = (sub)=>{
+    pdf.rect(0,0,pdf.W,74,DARK);
+    pdf.text(M,30,'Stats de match',{size:11,color:'#9db0a3'});
+    pdf.text(M,56,`${S.home}  ${gh} - ${ga}  ${S.away}`,{size:20,bold:true,color:'#ffffff'});
+    pdf.text(pdf.W-M-200,30,today,{size:9,color:'#9db0a3'});
+    if(sub) pdf.text(pdf.W-M-200,56,sub,{size:10,bold:true,color:'#ffffff'});
+    y=100;
+  };
+  const title = t => { pdf.text(M,y,t,{size:13,bold:true,color:DARK}); y+=8; pdf.line(M,y,M+W,y,'#3ddc84',1.5); y+=18; };
+  // table helper : cols = [{t,w,align}], rows = arrays
+  const table = (cols, rows, {rowH=17, headColor='#eef3ef'}={})=>{
+    let x=M; pdf.rect(M,y-12,W,rowH,headColor);
+    cols.forEach(cl=>{ const t=cl.t; if(cl.align==='c') pdf.textC(x+cl.w/2,y,t,{size:8.5,bold:true,color:cl.color||'#333333'}); else pdf.text(x+4,y,t,{size:8.5,bold:true,color:cl.color||'#333333'}); x+=cl.w; });
+    y+=rowH;
+    rows.forEach((r,ri)=>{
+      if(y>pdf.H-50){ pdf.addPage(); header('Détail des actions (suite)'); }
+      if(ri%2) pdf.rect(M,y-12,W,rowH,'#f6f8f6');
+      let x=M; r.forEach((v,i)=>{ const cl=cols[i], o={size:9,bold:!!cl.bold,color:cl.color||'#111111'};
+        if(cl.align==='c') pdf.textC(x+cl.w/2,y,String(v),o); else pdf.text(x+4,y,String(v),o); x+=cl.w; });
+      y+=rowH;
+    });
+    y+=10;
+  };
+  const short = (s,n)=> s.length>n ? s.slice(0,n-1)+'.' : s;
+
+  /* Page 1 : résumé */
+  header(`Périodes de ${S.halfLen} min`);
+  title('Comparaison');
+  const cw=(W-130)/6, H_=short(S.home,12), A_=short(S.away,12);
+  const cols=[{t:'Action',w:130},
+    {t:H_+' 1re',w:cw,align:'c',color:HOME},{t:H_+' 2e',w:cw,align:'c',color:HOME},{t:'Total',w:cw,align:'c',color:HOME,bold:true},
+    {t:A_+' 1re',w:cw,align:'c',color:AWAY},{t:A_+' 2e',w:cw,align:'c',color:AWAY},{t:'Total',w:cw,align:'c',color:AWAY,bold:true}];
+  const rows=[['Buts','but'],['Tirs (total)',SHOTS],['Tirs cadrés',['but','tirc']],['Tirs non cadrés','tirnc'],
+    ['Corners','corner'],['Hors-jeu','hj'],['Cartons jaunes','cj'],['Cartons rouges','cr'],['Changements','chgt']]
+    .map(([l,k])=>[l,c('H',k,1),c('H',k,2),c('H',k),c('A',k,1),c('A',k,2),c('A',k)]);
+  const pct=(a,b)=> b? Math.round(a/b*100)+' %' : '-';
+  const pc=(t,h)=>pct(c(t,['but','tirc'],h),c(t,SHOTS,h));
+  rows.push(['% tirs cadrés',pc('H',1),pc('H',2),pc('H'),pc('A',1),pc('A',2),pc('A')]);
+  const avg=(t,h)=>{ const d=ev.filter(e=>e.team===t&&SHOTS.includes(e.type)&&e.x!=null&&(!h||e.half===h)).map(e=>Math.hypot(e.x-34,e.y-(t==='H'?0:105))); return d.length? (Math.round(d.reduce((a,b)=>a+b,0)/d.length*10)/10).toString().replace('.',',')+' m' : '-'; };
+  rows.push(['Distance moy. des tirs',avg('H',1),avg('H',2),avg('H'),avg('A',1),avg('A',2),avg('A')]);
+  table(cols,rows);
+
+  title(`Tirs par zone (vue ${S.home})`);
+  const zones=['Surface adverse','Tiers offensif','Tiers médian','Tiers défensif','Surface '+S.home];
+  const cz=(t,ks,z)=> ev.filter(e=>e.team===t&&ks.includes(e.type)&&zone(e)===z).length;
+  table([{t:'Zone',w:130},{t:H_+' tirs',w:cw,align:'c',color:HOME},{t:'Cadrés',w:cw,align:'c',color:HOME},{t:'Buts',w:cw,align:'c',color:HOME,bold:true},
+         {t:A_+' tirs',w:cw,align:'c',color:AWAY},{t:'Cadrés',w:cw,align:'c',color:AWAY},{t:'Buts',w:cw,align:'c',color:AWAY,bold:true}],
+    zones.map(z=>[short(z,24),cz('H',SHOTS,z),cz('H',['but','tirc'],z),cz('H',['but'],z),cz('A',SHOTS,z),cz('A',['but','tirc'],z),cz('A',['but'],z)]));
+
+  title(`Tirs par couloir (vue ${S.home})`);
+  const cc=(t,k)=>ev.filter(e=>e.team===t&&SHOTS.includes(e.type)&&couloir(e)===k).length;
+  table([{t:'Couloir',w:130},{t:S.home,w:(W-130)/2,align:'c',color:HOME},{t:S.away,w:(W-130)/2,align:'c',color:AWAY}],
+    ['Gauche','Axe','Droit'].map(k=>[k,cc('H',k),cc('A',k)]));
+  pdf.text(M,pdf.H-30,`Positions vues du côté ${S.home} (attaque vers la droite), terrain de 105 x 68 m.`,{size:7.5,color:GREY});
+
+  /* Page 2 : cartes */
+  pdf.addPage(); header('Cartes des tirs');
+  const mw=W*0.86, mh=mw*74/111, mx=M+(W-mw)/2;
+  const legend = ()=>{ let x=mx; [['but','But'],['tirc','Tir cadré'],['tirnc','Tir non cadré']].forEach(([k,l])=>{ pdf.rect(x,y-7,8,8,A[k].c); pdf.text(x+12,y,l,{size:8.5,color:'#333333'}); x+=90; }); y+=14; };
+  for(const [t,label] of [['H',S.home],['A',S.away]]){
+    const shots = ev.filter(e=>e.team===t && SHOTS.includes(e.type) && e.x!=null);
+    pdf.text(M,y,`Tirs ${label} (${shots.length})`,{size:12,bold:true,color:t==='H'?HOME:AWAY});
+    pdf.text(M+W-120,y,`${label} attaque vers la ${t==='H'?'droite':'gauche'}`,{size:8,color:GREY}); y+=8;
+    pdf.image(await mapJpeg(shots),mx,y,mw,mh); y+=mh+16; legend(); y+=10;
+  }
+
+  /* Page 3+ : détail */
+  pdf.addPage(); header('Détail des actions');
+  title('Toutes les actions, avec leur position');
+  const dc=[{t:'Min.',w:38},{t:'Pér.',w:30,align:'c'},{t:'Équipe',w:82},{t:'Action',w:78},{t:'Zone',w:96},{t:'Couloir',w:48},{t:'Dist. but',w:46,align:'c'},{t:'X (m)',w:48,align:'c'},{t:'Y (m)',w:W-466,align:'c'}];
+  if(!ev.length) pdf.text(M,y,'Aucune action saisie.',{size:10,color:GREY});
+  else table(dc, ev.map(e=>[e.label,e.half,short(tname(e.team),15),A[e.type].l,zone(e)||'-',couloir(e)||'-',distBut(e)||'-',e.x==null?'-':num(e.x),e.y==null?'-':num(e.y)]));
+  pdf.text(M,pdf.H-30,'X : largeur (0 = couloir gauche). Y : longueur (0 = but adverse, 105 = but '+S.home+'). Distance au but visé, pour les tirs.',{size:7.5,color:GREY});
+
+  // numéros de page
+  pdf.pages.forEach((pg,i)=>{ pdf.c=pg; pdf.text(pdf.W-M-24,pdf.H-16,`${i+1} / ${pdf.pages.length}`,{size:8,color:GREY}); });
+  return pdf.output();
+}
+let DL = null;
+(async()=>{ try{ if(window.claude && typeof window.claude.use==='function') DL = await window.claude.use('downloads'); }catch(e){ DL=null; } })();
+async function exportPDF(){
+  let bytes;
+  try{ toast('Création du PDF…'); bytes = await buildPDF(); }
+  catch(e){ toast('Erreur pendant la création du PDF'); return; }
+  const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const clean = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const filename = `stats-${clean(S.home)}-${clean(S.away)}-${stamp}.pdf`;
+  window.__lastPDF = bytes;
+  if(!DL){ toast('Téléchargement indisponible ici — ouvre la page dans Claude'); return; }
+  try{ await DL.save({filename, data: new Blob([bytes],{type:'application/pdf'})}); toast('PDF enregistré'); }
+  catch(e){ toast(e && e.code==='declined' ? 'Téléchargement annulé' : e && e.code==='rate_limited' ? 'Patiente un instant puis réessaie' : 'Téléchargement impossible ici'); }
+}
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on', v.id==='v-'+b.dataset.v));
+  renderAll(); window.scrollTo(0,0);
+});
+
+function renderAll(){ renderScore(); renderPitch(); renderStats(); renderLog(); }
+renderActs(); setTeam('H');
+if(!S.events.length && S.away==='Adversaire') setTimeout(matchSetup, 300);
+ renderAll(); tick();
+</script>
+</body>
+</html>
